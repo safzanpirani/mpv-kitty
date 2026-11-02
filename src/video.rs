@@ -303,19 +303,22 @@ impl Viewport {
     }
 }
 
-/// mpv's argv with the kitty output, its sizing and the embedding flags inserted before the
-/// `--` that starts the files. Inserted flags come last, so they win over `base`.
+/// mpv's argv with the kitty output added. Tuning defaults go right after the program, so the
+/// caller's own options override them; the output, its sizing and the embedding flags go
+/// before the `--` that starts the files, so they win over the caller's.
 pub(crate) fn argv(base: &[String], view: Viewport, max: (u32, u32), embedded: bool, socket: Option<&std::path::Path>) -> Vec<String> {
     let (w, h) = view.render_size(max);
-    let mut extra = vec![
-        "--vo=kitty".into(),
+    let defaults = [
         // Software scaling tuned for speed; the terminal scales up on the GPU anyway.
-        "--profile=sw-fast".into(),
+        "--profile=sw-fast",
         // zimg's slice threads split each frame into column strips that don't line up,
         // which draws a vertical seam through the picture.
-        "--zimg-threads=1".into(),
+        "--zimg-threads=1",
         // The kitty output needs frames in system memory; hardware decoders copy back.
-        "--hwdec=auto-copy".into(),
+        "--hwdec=auto-copy",
+    ];
+    let mut extra = vec![
+        "--vo=kitty".into(),
         "--video-unscaled=downscale-big".into(),
         format!("--vo-kitty-width={w}"),
         format!("--vo-kitty-height={h}"),
@@ -343,6 +346,8 @@ pub(crate) fn argv(base: &[String], view: Viewport, max: (u32, u32), embedded: b
     let mut out = base.to_vec();
     let boundary = out.iter().position(|x| x == "--").unwrap_or(out.len());
     out.splice(boundary..boundary, extra);
+    let program = out.len().min(1);
+    out.splice(program..program, defaults.map(str::to_string));
     out
 }
 
@@ -967,6 +972,11 @@ mod tests {
         let base: Vec<String> = ["mpv", "--volume=50", "--", "a.webm", "b.gif"].map(String::from).to_vec();
         let args = argv(&base, view(), LOCAL, true, Some(std::path::Path::new("/tmp/mpv-kitty.sock")));
         assert!(args.contains(&"--vo=kitty".into()));
+        let tuned: Vec<String> = ["mpv", "--hwdec=no", "--", "a.webm"].map(String::from).to_vec();
+        let custom = argv(&tuned, view(), LOCAL, true, None);
+        let at = |flag: &str| custom.iter().position(|a| a == flag).unwrap();
+        assert!(at("--hwdec=auto-copy") < at("--hwdec=no"), "the caller's option comes later and wins");
+        assert_eq!(custom[0], "mpv");
         assert!(args.contains(&"--vo-kitty-width=1200".into()));
         assert!(args.contains(&"--vo-kitty-use-shm=no".into()));
         assert!(args.contains(&"--input-ipc-server=/tmp/mpv-kitty.sock".into()));
