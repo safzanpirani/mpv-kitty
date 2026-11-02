@@ -1,0 +1,21 @@
+[package]
+name = "mpv-kitty"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Play video inside any rectangle of a terminal: mpv decodes, the kitty graphics protocol draws"
+license = "MIT"
+repository = "https://github.com/safzanpirani/mpv-kitty"
+readme = "README.md"
+keywords = ["terminal", "video", "kitty", "mpv", "tui"]
+categories = ["command-line-interface", "multimedia::video"]
+
+[dependencies]
+base64 = "0.22"
+serde_json = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+crossterm = "0.29"
