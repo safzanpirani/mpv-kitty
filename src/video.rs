@@ -260,7 +260,12 @@ fn shm_publish(data: &[u8]) -> io::Result<String> {
 /// Write `data` to a temp file kitty may read and delete (its name must say tty-graphics-protocol).
 fn file_publish(data: &[u8]) -> io::Result<String> {
     let path = std::env::temp_dir().join(format!("mpv-kitty-tty-graphics-protocol-{}-{}.rgb", std::process::id(), next_name()));
-    std::fs::write(&path, data)?;
+    // A fresh, owner-only file: a path someone planted (or a symlink) fails instead of being written.
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    options.open(&path)?.write_all(data)?;
     let name = path.to_string_lossy().into_owned();
     remember(Transfer::File, name.clone());
     Ok(name)
@@ -846,8 +851,22 @@ impl Session {
     pub(crate) fn progress(&self) -> Progress {
         *self.progress.lock().unwrap_or_else(|e| e.into_inner())
     }
+    /// Send one IPC command. mpv creates its socket shortly after it starts, so a command sent
+    /// right after `start` waits up to a second for it.
     pub(crate) fn command(&self, command: serde_json::Value) -> io::Result<()> {
-        let mut socket = std::os::unix::net::UnixStream::connect(&self.socket)?;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+        let mut socket = loop {
+            match std::os::unix::net::UnixStream::connect(&self.socket) {
+                Ok(socket) => break socket,
+                Err(e)
+                    if matches!(e.kind(), io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused)
+                        && std::time::Instant::now() < deadline =>
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(10))
+                }
+                Err(e) => return Err(e),
+            }
+        };
         socket.set_write_timeout(Some(std::time::Duration::from_millis(50)))?;
         let line = serde_json::to_string(&serde_json::json!({"command": command})).map_err(io::Error::other)?;
         writeln!(socket, "{line}")
@@ -1202,6 +1221,7 @@ mod tests {
         let (tx, _rx) = mpsc::sync_channel(1);
         assert!(frames(&mut Cursor::new(b"\x1b_Ga=T,f=24,s=50,v=40,m=1;AAAA\x1b\\"), &tx).is_err());
     }
+    #[cfg(unix)]
     #[test]
     fn session_drop_unblocks_a_full_frame_queue_and_reaps_the_child() {
         let (tx, rx) = mpsc::sync_channel(1);

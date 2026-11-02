@@ -58,6 +58,12 @@ impl Player {
         self.frame.is_some()
     }
 
+    /// Whether a frame arrived since the last `render`, so `render` without `force` would
+    /// return bytes. Lets you skip measuring the box when nothing changed.
+    pub fn has_new_frame(&self) -> bool {
+        self.dirty
+    }
+
     /// The bytes that draw the newest frame, centred in the box whose top-left cell is
     /// (`column`, `row`), counted from 0. None when nothing changed since the last call;
     /// `force` draws again anyway (after a resize, or after [`crate::clear`]). The cursor is
