@@ -127,9 +127,11 @@ reader thread parses those packets and, for local kitty, decodes each 4 KB
 chunk as it arrives straight into a new shared-memory object for that frame.
 The terminal then receives one escape that names the object; kitty maps it and
 unlinks it. Every frame gets its own object, so a slow terminal never reads a
-frame that the next one has already overwritten (mpv's own
-`--vo-kitty-use-shm` reuses one name). Objects the terminal never claims are
-unlinked after 30 newer frames and when playback stops.
+frame that the next one has already overwritten. mpv's own
+`--vo-kitty-use-shm` reuses one name, and releases up to 0.41.0 drop its leading
+`/`, so on macOS it shows nothing (fixed in mpv's development branch by
+[`e5a74aa`](https://github.com/mpv-player/mpv/commit/e5a74aaaa)). Objects the
+terminal never claims are unlinked after 30 newer frames and when playback stops.
 
 Frames alternate between two image ids, and the previous id is deleted only
 after the new frame is placed. Sending a new frame to the id on screen makes
