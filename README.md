@@ -13,6 +13,8 @@ screen around the video.
 
 <sub>The bundled example player in kitty 0.48 on macOS, recorded from the
 screen. Playback ran at the clip's 60 fps; the recording is shown at 30 fps.
+The blockiness in the recording comes from compressing it to WebP. The video in
+the terminal plays at full quality.
 Big Buck Bunny © Blender Foundation, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).</sub>
 
 ## Try it
